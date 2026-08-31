@@ -119,7 +119,26 @@
         .badge.lec { background: var(--lec); }
         .badge.prac { background: var(--prac); }
         .title { font-weight: 500; font-size: 1.05em; }
-        .location { font-size: 0.85em; color: #9ca3af; margin-top: 2px; }
+        .location { font-size: 0.85em; color: #9ca3af; margin-top: 4px; }
+        .location-icon { margin-right: 4px; }
+        .teacher-info { 
+            font-size: 0.85em; 
+            color: #6b7280; 
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        .timeinfo { 
+            font-size: 0.85em; 
+            color: #059669; 
+            font-weight: 600; 
+            margin-top: 4px; 
+        }
+        .note { 
+            font-size: 0.85em; 
+            color: #d97706; 
+            font-weight: 600; 
+            margin-top: 4px; 
+        }
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -129,59 +148,62 @@
         }
         .hidden { display: none; }
 
-        /* ===== КАЛЕНДАРЬ НА МЕСЯЦ ===== */
+        /* ===== КАЛЕНДАРЬ ===== */
         .cal-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             gap: 4px;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
         .cal-head {
-            text-align: center;
             font-weight: 600;
-            font-size: 0.8em;
+            text-align: center;
             color: #6b7280;
+            font-size: 0.8em;
             padding: 4px 0;
         }
-        .weekend-head { color: #c3c8d1; }
         .cal-cell {
             background: var(--card-bg);
             border-radius: 8px;
-            min-height: 72px;
+            min-height: 62px;
             padding: 4px;
             display: flex;
             flex-direction: column;
             gap: 2px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
         }
-        .cal-cell.empty { background: transparent; box-shadow: none; }
-        .cal-cell.weekend { background: #eef0f3; }
-        .cal-cell.weekend .cal-day { color: #9ca3af; }
-        .cal-cell.holiday { background: #fdf6e3; }
-        .cal-cell.today { outline: 2px solid var(--primary); }
+        .cal-cell.empty { background: transparent; box-shadow: none; cursor: default; }
+        .cal-cell.sun, .cal-cell.sat { background: #fef2f2; }
         .cal-day { font-size: 0.8em; font-weight: 600; color: #374151; }
-        .chip {
-            font-size: 0.6em;
+        .cal-cell.sun .cal-day, .cal-cell.sat .cal-day { color: #ef4444; }
+        .cal-chip {
+            font-size: 0.62em;
             font-weight: 700;
             color: #fff;
             border-radius: 4px;
-            padding: 2px 3px;
+            padding: 1px 3px;
             text-align: center;
         }
-        .chip.prac { background: var(--prac); }
-        .chip.lec { background: var(--lec); }
-        .chip.hol { background: transparent; color: #b45309; font-size: 0.75em; }
+        .cal-lecrow { display: flex; gap: 3px; margin-top: auto; padding-top: 2px; }
+        .cal-lec {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--lec);
+            display: inline-block;
+        }
+        .cal-holiday { font-size: 0.9em; text-align: center; }
         .legend {
             background: var(--card-bg);
-            border-radius: 10px;
-            padding: 12px;
-            font-size: 0.85em;
-            color: #6b7280;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            align-items: center;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
+        .legend-title { font-weight: 700; margin-bottom: 10px; color: #4b5563; }
+        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.9em; }
+        .legend-item .cal-chip { min-width: 44px; }
+        .legend-hint { margin-top: 10px; font-size: 0.85em; color: #9ca3af; }
     </style>
 </head>
 <body>
@@ -197,7 +219,7 @@
         <button class="tab-btn" onclick="setView('today')" id="btn-today">Сегодня</button>
         <button class="tab-btn" onclick="setView('week')" id="btn-week">Неделя</button>
         <button class="tab-btn" onclick="setView('date')" id="btn-date">Дата</button>
-        <button class="tab-btn" onclick="setView('calendar')" id="btn-calendar">Календарь</button>
+        <button class="tab-btn" onclick="setView('cal')" id="btn-cal">Календарь</button>
         <button class="tab-btn" onclick="setView('all')" id="btn-all">Всё расписание</button>
     </div>
 
@@ -212,9 +234,9 @@
         <input type="date" id="date-input" onchange="updateDisplay()">
     </div>
 
-    <div class="nav-controls hidden" id="month-nav">
+    <div class="nav-controls hidden" id="cal-nav">
         <button class="nav-btn" onclick="changeMonth(-1)">← Пред. месяц</button>
-        <span id="month-range" style="font-weight: bold; text-transform: capitalize;"></span>
+        <span id="cal-label" style="font-weight: bold; text-transform: capitalize;"></span>
         <button class="nav-btn" onclick="changeMonth(1)">След. месяц →</button>
     </div>
 
@@ -246,15 +268,17 @@
         { subj: "Факультетская терапия, проф. болезни", start: "05.10", end: "17.10" },
         { subj: "Оториноларингология", start: "19.10", end: "31.10" },
         { subj: "Травматология и ортопедия", start: "02.11", end: "11.11" },
-        { subj: "Факультетская хирургия", start: "12.11", end: "18.11", loc: "Мариинская больница • преп. Липская Елена Викторовна • время начала уточнить" },
+        { subj: "Факультетская хирургия", start: "12.11", end: "18.11",
+          place: "Мариинская больница",
+          teacher: "Липская Елена Викторовна",
+          note: "⏰ Время начала уточняется" },
         { subj: "Стоматология", start: "19.11", end: "25.11" },
         { subj: "Медицинская реабилитация", start: "26.11", end: "09.12" },
         { subj: "Основы формирования здоровья детей", start: "10.12", end: "16.12" },
         { subj: "Неврология", start: "17.12", end: "30.12" }
     ];
 
-    // Сокращения для календаря
-    const ABBR = {
+    const subjShort = {
         "Анестезиология, реанимация, ИТ": "АиР",
         "Факультетская педиатрия, эндокринология": "ФП",
         "Факультетская терапия, проф. болезни": "ФТ",
@@ -266,14 +290,23 @@
         "Основы формирования здоровья детей": "ОФЗД",
         "Неврология": "НЕВ"
     };
-    function abbr(subj) { return ABBR[subj] || subj.slice(0, 4).toUpperCase(); }
-
-    // ============ ЛОГИКА ============
+    const subjColor = {
+        "Анестезиология, реанимация, ИТ": "#ef4444",
+        "Факультетская педиатрия, эндокринология": "#f97316",
+        "Факультетская терапия, проф. болезни": "#f59e0b",
+        "Оториноларингология": "#8b5cf6",
+        "Травматология и ортопедия": "#14b8a6",
+        "Факультетская хирургия": "#0ea5e9",
+        "Стоматология": "#6366f1",
+        "Медицинская реабилитация": "#10b981",
+        "Основы формирования здоровья детей": "#ec4899",
+        "Неврология": "#84cc16"
+    };
 
     let scheduleData = [];
     let currentView = 'all';
     let currentMonday = getMonday(new Date());
-    let currentMonth = new Date(2026, 8, 1); // сентябрь 2026
+    let calCursor = new Date(2026, 8, 1);
 
     function parseDate(dStr) {
         const [d, m] = dStr.split('.');
@@ -291,7 +324,6 @@
                String(date.getDate()).padStart(2, '0');
     }
 
-    // НОВОГОДНИЕ ПРАЗДНИКИ (31.12.2026 – 10.01.2027)
     function isHoliday(date) {
         const start = new Date(2026, 11, 31);
         const end   = new Date(2027, 0, 10);
@@ -318,7 +350,10 @@
                 time: "Практика (цикл)",
                 start: parseDate(p.start),
                 end: parseDate(p.end),
-                location: p.loc || "По расписанию кафедр"
+                location: p.place || "По расписанию кафедр",
+                teacher: p.teacher || null,
+                timeInfo: p.timeInfo || null,
+                note: p.note || null
             });
         });
 
@@ -333,9 +368,8 @@
     }
 
     function getEventsForDate(date) {
-        // СУББОТА и ВОСКРЕСЕНЬЕ — выходные
-        if (date.getDay() === 0 || date.getDay() === 6) return [];
-        // НОВОГОДНИЕ ПРАЗДНИКИ
+        const wd = date.getDay();
+        if (wd === 0 || wd === 6) return [];
         if (isHoliday(date)) return [];
 
         let lectures = [];
@@ -355,12 +389,28 @@
         div.className = 'event';
         const badgeClass = e.type === 'Лекция' ? 'lec' : 'prac';
         const timeText = e.type === 'Лекция' ? e.time : (fmtShort(e.start) + ' – ' + fmtShort(e.end));
+        
+        // Место проведения
+        const locationHtml = `<div class="location"><span class="location-icon">📍</span>${e.location}</div>`;
+        
+        // Преподаватель (полностью, на отдельной строке)
+        const teacherHtml = e.teacher ? `<div class="teacher-info"><span class="location-icon">👨‍🏫</span>Преподаватель: <strong>${e.teacher}</strong></div>` : '';
+        
+        // Время начала
+        const timeInfoHtml = e.timeInfo ? `<div class="timeinfo"><span class="location-icon">🕘</span>${e.timeInfo}</div>` : '';
+        
+        // Примечание
+        const noteHtml = e.note ? `<div class="note"><span class="location-icon">⚠️</span>${e.note}</div>` : '';
+        
         div.innerHTML = `
             <div class="time">${timeText}</div>
             <div>
                 <span class="badge ${badgeClass}">${e.type}</span>
                 <div class="title">${e.title}</div>
-                <div class="location">${e.location}</div>
+                ${locationHtml}
+                ${teacherHtml}
+                ${timeInfoHtml}
+                ${noteHtml}
             </div>
         `;
         return div;
@@ -377,8 +427,8 @@
 
     function emptyMessage(date) {
         if (isHoliday(date)) return 'Новогодние праздники — занятий нет 🎄';
-        if (date.getDay() === 0) return 'Воскресенье — выходной 🎉';
         if (date.getDay() === 6) return 'Суббота — выходной 🎉';
+        if (date.getDay() === 0) return 'Воскресенье — выходной 🎉';
         return 'Занятий нет 🎉';
     }
 
@@ -434,13 +484,8 @@
             `${mondayDate.toLocaleDateString('ru-RU')} — ${sunday.toLocaleDateString('ru-RU')}`;
     }
 
-    // ===== КАЛЕНДАРЬ НА МЕСЯЦ =====
     function changeMonth(offset) {
-        currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
-        const min = new Date(2026, 8, 1);
-        const max = new Date(2027, 0, 1);
-        if (currentMonth < min) currentMonth = new Date(min);
-        if (currentMonth > max) currentMonth = new Date(max);
+        calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + offset, 1);
         updateDisplay();
     }
 
@@ -448,59 +493,74 @@
         const container = document.getElementById('schedule-container');
         container.innerHTML = '';
 
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
+        const y = calCursor.getFullYear();
+        const m = calCursor.getMonth();
 
-        document.getElementById('month-range').innerText =
-            currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+        document.getElementById('cal-label').innerText =
+            calCursor.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 
         const grid = document.createElement('div');
         grid.className = 'cal-grid';
 
-        ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(d => {
-            const h = document.createElement('div');
-            h.className = 'cal-head' + (d === 'Сб' || d === 'Вс' ? ' weekend-head' : '');
-            h.innerText = d;
-            grid.appendChild(h);
+        ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(h => {
+            const hd = document.createElement('div');
+            hd.className = 'cal-head';
+            hd.innerText = h;
+            grid.appendChild(hd);
         });
 
-        const offset = (new Date(year, month, 1).getDay() + 6) % 7;
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const today = new Date();
-
+        let offset = new Date(y, m, 1).getDay() - 1;
+        if (offset < 0) offset = 6;
         for (let i = 0; i < offset; i++) {
             const empty = document.createElement('div');
             empty.className = 'cal-cell empty';
             grid.appendChild(empty);
         }
 
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
         for (let d = 1; d <= daysInMonth; d++) {
-            const date = new Date(year, month, d);
+            const date = new Date(y, m, d);
             const cell = document.createElement('div');
             cell.className = 'cal-cell';
-            const dow = date.getDay();
-            if (dow === 0 || dow === 6) cell.classList.add('weekend');
-            if (isHoliday(date)) cell.classList.add('holiday');
-            if (date.toDateString() === today.toDateString()) cell.classList.add('today');
+            if (date.getDay() === 0) cell.classList.add('sun');
+            if (date.getDay() === 6) cell.classList.add('sat');
 
-            const num = document.createElement('div');
-            num.className = 'cal-day';
-            num.innerText = d;
-            cell.appendChild(num);
-
-            getEventsForDate(date).forEach(e => {
-                const chip = document.createElement('span');
-                chip.className = 'chip ' + (e.type === 'Лекция' ? 'lec' : 'prac');
-                chip.innerText = abbr(e.title);
-                cell.appendChild(chip);
-            });
+            const dayNum = document.createElement('div');
+            dayNum.className = 'cal-day';
+            dayNum.innerText = d;
+            cell.appendChild(dayNum);
 
             if (isHoliday(date)) {
-                const hol = document.createElement('span');
-                hol.className = 'chip hol';
+                const hol = document.createElement('div');
+                hol.className = 'cal-holiday';
                 hol.innerText = '🎄';
                 cell.appendChild(hol);
+            } else {
+                const events = getEventsForDate(date);
+                events.filter(e => e.type === 'Практика').forEach(p => {
+                    const chip = document.createElement('div');
+                    chip.className = 'cal-chip';
+                    chip.style.background = subjColor[p.title] || '#10b981';
+                    chip.innerText = subjShort[p.title] || p.title;
+                    cell.appendChild(chip);
+                });
+                const lecs = events.filter(e => e.type === 'Лекция');
+                if (lecs.length > 0) {
+                    const row = document.createElement('div');
+                    row.className = 'cal-lecrow';
+                    lecs.forEach(() => {
+                        const dot = document.createElement('span');
+                        dot.className = 'cal-lec';
+                        row.appendChild(dot);
+                    });
+                    cell.appendChild(row);
+                }
             }
+
+            cell.onclick = () => {
+                document.getElementById('date-input').value = formatDateInput(date);
+                setView('date');
+            };
 
             grid.appendChild(cell);
         }
@@ -509,12 +569,15 @@
 
         const legend = document.createElement('div');
         legend.className = 'legend';
-        legend.innerHTML = `
-            <span><span class="chip prac">ФХ</span> практика</span>
-            <span><span class="chip lec">ФТ</span> лекция</span>
-            <span>серым — выходные (Сб/Вс)</span>
-            <span>🎄 — новогодние праздники</span>
-        `;
+        let legendHtml = '<div class="legend-title">Условные обозначения:</div>';
+        practicalsRaw.forEach(p => {
+            legendHtml += `<div class="legend-item"><span class="cal-chip" style="background:${subjColor[p.subj]}">${subjShort[p.subj]}</span> ${p.subj}</div>`;
+        });
+        legendHtml += '<div class="legend-item"><span class="cal-lec"></span> Лекция (сколько точек — столько лекций)</div>';
+        legendHtml += '<div class="legend-item">🎄 Новогодние праздники</div>';
+        legendHtml += '<div class="legend-item" style="color:#ef4444;">Суббота и воскресенье — выходные</div>';
+        legendHtml += '<div class="legend-hint">Нажмите на любой день, чтобы открыть подробное расписание</div>';
+        legend.innerHTML = legendHtml;
         container.appendChild(legend);
     }
 
@@ -550,7 +613,7 @@
         document.getElementById(`btn-${view}`).classList.add('active');
         document.getElementById('week-nav').classList.toggle('hidden', view !== 'week');
         document.getElementById('date-nav').classList.toggle('hidden', view !== 'date');
-        document.getElementById('month-nav').classList.toggle('hidden', view !== 'calendar');
+        document.getElementById('cal-nav').classList.toggle('hidden', view !== 'cal');
         updateDisplay();
     }
 
@@ -563,11 +626,10 @@
         if (currentView === 'today') renderToday();
         else if (currentView === 'week') renderWeek(currentMonday);
         else if (currentView === 'date') renderCustomDate();
-        else if (currentView === 'calendar') renderCalendar();
+        else if (currentView === 'cal') renderCalendar();
         else if (currentView === 'all') renderAll();
     }
 
-    // Запуск
     initSchedule();
     document.getElementById('date-input').value = formatDateInput(new Date());
     setView('all');
