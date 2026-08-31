@@ -263,7 +263,13 @@
     ];
 
     const practicalsRaw = [
-        { subj: "Анестезиология, реанимация, ИТ", start: "01.09", end: "16.09" },
+        { subj: "Анестезиология, реанимация, ИТ", start: "01.09", end: "16.09",
+          firstDays: { count: 2,
+            place: "ДГБ №3 (Большой просп. Васильевского острова, 77/17М)",
+            time: "9:30",
+            teacher: "Виталий Анвярович"
+          }
+        },
         { subj: "Факультетская педиатрия, эндокринология", start: "17.09", end: "03.10" },
         { subj: "Факультетская терапия, проф. болезни", start: "05.10", end: "17.10" },
         { subj: "Оториноларингология", start: "19.10", end: "31.10" },
@@ -353,7 +359,8 @@
                 location: p.place || "По расписанию кафедр",
                 teacher: p.teacher || null,
                 timeInfo: p.timeInfo || null,
-                note: p.note || null
+                note: p.note || null,
+                firstDays: p.firstDays || null
             });
         });
 
@@ -367,6 +374,24 @@
         return new Date(d.setDate(diff));
     }
 
+    // Проверка, является ли дата одним из первых N дней цикла (только рабочих)
+    function isFirstNDays(practice, date, n) {
+        if (!practice.firstDays) return false;
+        let count = 0;
+        let d = new Date(practice.start);
+        const endDate = practice.end;
+        
+        while (d <= endDate && count < n) {
+            const dow = d.getDay();
+            if (dow !== 0 && dow !== 6 && !isHoliday(d)) {
+                count++;
+                if (d.toDateString() === date.toDateString()) return true;
+            }
+            d.setDate(d.getDate() + 1);
+        }
+        return false;
+    }
+
     function getEventsForDate(date) {
         const wd = date.getDay();
         if (wd === 0 || wd === 6) return [];
@@ -378,7 +403,20 @@
             if (e.type === 'Лекция') {
                 if (e.date.toDateString() === date.toDateString()) lectures.push(e);
             } else if (e.type === 'Практика') {
-                if (date >= e.start && date <= e.end) practicals.push(e);
+                if (date >= e.start && date <= e.end) {
+                    // Создаём копию события, чтобы не портить исходные данные
+                    const eventCopy = {...e};
+                    // Если это один из первых N дней цикла с особыми данными
+                    if (e.firstDays && isFirstNDays(e, date, e.firstDays.count)) {
+                        eventCopy.location = e.firstDays.place;
+                        eventCopy.time = e.firstDays.time;
+                        eventCopy.teacher = e.firstDays.teacher;
+                        eventCopy.timeInfo = null;
+                        eventCopy.note = null;
+                        eventCopy.isFirstDay = true;
+                    }
+                    practicals.push(eventCopy);
+                }
             }
         });
         return practicals.concat(lectures);
@@ -388,18 +426,12 @@
         const div = document.createElement('div');
         div.className = 'event';
         const badgeClass = e.type === 'Лекция' ? 'lec' : 'prac';
-        const timeText = e.type === 'Лекция' ? e.time : (fmtShort(e.start) + ' – ' + fmtShort(e.end));
+        const timeText = e.type === 'Лекция' ? e.time : 
+                         (e.isFirstDay ? e.time : (fmtShort(e.start) + ' – ' + fmtShort(e.end)));
         
-        // Место проведения
         const locationHtml = `<div class="location"><span class="location-icon">📍</span>${e.location}</div>`;
-        
-        // Преподаватель (полностью, на отдельной строке)
         const teacherHtml = e.teacher ? `<div class="teacher-info"><span class="location-icon">👨‍🏫</span>Преподаватель: <strong>${e.teacher}</strong></div>` : '';
-        
-        // Время начала
         const timeInfoHtml = e.timeInfo ? `<div class="timeinfo"><span class="location-icon">🕘</span>${e.timeInfo}</div>` : '';
-        
-        // Примечание
         const noteHtml = e.note ? `<div class="note"><span class="location-icon">⚠️</span>${e.note}</div>` : '';
         
         div.innerHTML = `
