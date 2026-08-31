@@ -128,6 +128,60 @@
             border-radius: 12px;
         }
         .hidden { display: none; }
+
+        /* ===== КАЛЕНДАРЬ НА МЕСЯЦ ===== */
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-bottom: 15px;
+        }
+        .cal-head {
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.8em;
+            color: #6b7280;
+            padding: 4px 0;
+        }
+        .weekend-head { color: #c3c8d1; }
+        .cal-cell {
+            background: var(--card-bg);
+            border-radius: 8px;
+            min-height: 72px;
+            padding: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        }
+        .cal-cell.empty { background: transparent; box-shadow: none; }
+        .cal-cell.weekend { background: #eef0f3; }
+        .cal-cell.weekend .cal-day { color: #9ca3af; }
+        .cal-cell.holiday { background: #fdf6e3; }
+        .cal-cell.today { outline: 2px solid var(--primary); }
+        .cal-day { font-size: 0.8em; font-weight: 600; color: #374151; }
+        .chip {
+            font-size: 0.6em;
+            font-weight: 700;
+            color: #fff;
+            border-radius: 4px;
+            padding: 2px 3px;
+            text-align: center;
+        }
+        .chip.prac { background: var(--prac); }
+        .chip.lec { background: var(--lec); }
+        .chip.hol { background: transparent; color: #b45309; font-size: 0.75em; }
+        .legend {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 0.85em;
+            color: #6b7280;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -143,6 +197,7 @@
         <button class="tab-btn" onclick="setView('today')" id="btn-today">Сегодня</button>
         <button class="tab-btn" onclick="setView('week')" id="btn-week">Неделя</button>
         <button class="tab-btn" onclick="setView('date')" id="btn-date">Дата</button>
+        <button class="tab-btn" onclick="setView('calendar')" id="btn-calendar">Календарь</button>
         <button class="tab-btn" onclick="setView('all')" id="btn-all">Всё расписание</button>
     </div>
 
@@ -157,13 +212,18 @@
         <input type="date" id="date-input" onchange="updateDisplay()">
     </div>
 
+    <div class="nav-controls hidden" id="month-nav">
+        <button class="nav-btn" onclick="changeMonth(-1)">← Пред. месяц</button>
+        <span id="month-range" style="font-weight: bold; text-transform: capitalize;"></span>
+        <button class="nav-btn" onclick="changeMonth(1)">След. месяц →</button>
+    </div>
+
     <div id="schedule-container"></div>
 </div>
 
 <script>
     // ============ ДАННЫЕ РАСПИСАНИЯ (ПЕДИАТРИЯ, 1 поток) ============
 
-    // ЛЕКЦИИ — официальные даты, времена и аудитории
     const lecturesRaw = [
         { subj: "Факультетская терапия, проф. болезни", time: "13:50-15:10", loc: "ул. Литовская, 2, литера Я, ауд. № 1", dates: "07.09, 21.09, 05.10, 19.10, 02.11, 16.11, 30.11, 07.12, 14.12, 21.12, 28.12" },
         { subj: "Факультетская терапия, проф. болезни", time: "15:30-16:50", loc: "ул. Литовская, 2, литера Я, ауд. № 5", dates: "28.12" },
@@ -180,7 +240,6 @@
         { subj: "Основы формирования здоровья детей", time: "13:50-15:10", loc: "ул. Литовская, 2, литера Я, ауд. № 1", dates: "27.11, 04.12, 11.12" }
     ];
 
-    // ПРАКТИЧЕСКИЕ ЦИКЛЫ (группа 430) — официальные даты
     const practicalsRaw = [
         { subj: "Анестезиология, реанимация, ИТ", start: "01.09", end: "16.09" },
         { subj: "Факультетская педиатрия, эндокринология", start: "17.09", end: "03.10" },
@@ -194,11 +253,27 @@
         { subj: "Неврология", start: "17.12", end: "30.12" }
     ];
 
+    // Сокращения для календаря
+    const ABBR = {
+        "Анестезиология, реанимация, ИТ": "АиР",
+        "Факультетская педиатрия, эндокринология": "ФП",
+        "Факультетская терапия, проф. болезни": "ФТ",
+        "Оториноларингология": "ЛОР",
+        "Травматология и ортопедия": "ТрО",
+        "Факультетская хирургия": "ФХ",
+        "Стоматология": "Ст",
+        "Медицинская реабилитация": "МР",
+        "Основы формирования здоровья детей": "ОФЗД",
+        "Неврология": "НЕВ"
+    };
+    function abbr(subj) { return ABBR[subj] || subj.slice(0, 4).toUpperCase(); }
+
     // ============ ЛОГИКА ============
 
     let scheduleData = [];
     let currentView = 'all';
     let currentMonday = getMonday(new Date());
+    let currentMonth = new Date(2026, 8, 1); // сентябрь 2026
 
     function parseDate(dStr) {
         const [d, m] = dStr.split('.');
@@ -216,7 +291,7 @@
                String(date.getDate()).padStart(2, '0');
     }
 
-    // НОВОГОДНИЕ ПРАЗДНИКИ — занятий нет (31.12.2026 – 10.01.2027)
+    // НОВОГОДНИЕ ПРАЗДНИКИ (31.12.2026 – 10.01.2027)
     function isHoliday(date) {
         const start = new Date(2026, 11, 31);
         const end   = new Date(2027, 0, 10);
@@ -258,8 +333,8 @@
     }
 
     function getEventsForDate(date) {
-        // ВОСКРЕСЕНЬЕ — выходной
-        if (date.getDay() === 0) return [];
+        // СУББОТА и ВОСКРЕСЕНЬЕ — выходные
+        if (date.getDay() === 0 || date.getDay() === 6) return [];
         // НОВОГОДНИЕ ПРАЗДНИКИ
         if (isHoliday(date)) return [];
 
@@ -272,7 +347,6 @@
                 if (date >= e.start && date <= e.end) practicals.push(e);
             }
         });
-        // Сначала практика, затем лекции
         return practicals.concat(lectures);
     }
 
@@ -304,6 +378,7 @@
     function emptyMessage(date) {
         if (isHoliday(date)) return 'Новогодние праздники — занятий нет 🎄';
         if (date.getDay() === 0) return 'Воскресенье — выходной 🎉';
+        if (date.getDay() === 6) return 'Суббота — выходной 🎉';
         return 'Занятий нет 🎉';
     }
 
@@ -359,11 +434,95 @@
             `${mondayDate.toLocaleDateString('ru-RU')} — ${sunday.toLocaleDateString('ru-RU')}`;
     }
 
+    // ===== КАЛЕНДАРЬ НА МЕСЯЦ =====
+    function changeMonth(offset) {
+        currentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + offset, 1);
+        const min = new Date(2026, 8, 1);
+        const max = new Date(2027, 0, 1);
+        if (currentMonth < min) currentMonth = new Date(min);
+        if (currentMonth > max) currentMonth = new Date(max);
+        updateDisplay();
+    }
+
+    function renderCalendar() {
+        const container = document.getElementById('schedule-container');
+        container.innerHTML = '';
+
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+
+        document.getElementById('month-range').innerText =
+            currentMonth.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+
+        const grid = document.createElement('div');
+        grid.className = 'cal-grid';
+
+        ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].forEach(d => {
+            const h = document.createElement('div');
+            h.className = 'cal-head' + (d === 'Сб' || d === 'Вс' ? ' weekend-head' : '');
+            h.innerText = d;
+            grid.appendChild(h);
+        });
+
+        const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const today = new Date();
+
+        for (let i = 0; i < offset; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'cal-cell empty';
+            grid.appendChild(empty);
+        }
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month, d);
+            const cell = document.createElement('div');
+            cell.className = 'cal-cell';
+            const dow = date.getDay();
+            if (dow === 0 || dow === 6) cell.classList.add('weekend');
+            if (isHoliday(date)) cell.classList.add('holiday');
+            if (date.toDateString() === today.toDateString()) cell.classList.add('today');
+
+            const num = document.createElement('div');
+            num.className = 'cal-day';
+            num.innerText = d;
+            cell.appendChild(num);
+
+            getEventsForDate(date).forEach(e => {
+                const chip = document.createElement('span');
+                chip.className = 'chip ' + (e.type === 'Лекция' ? 'lec' : 'prac');
+                chip.innerText = abbr(e.title);
+                cell.appendChild(chip);
+            });
+
+            if (isHoliday(date)) {
+                const hol = document.createElement('span');
+                hol.className = 'chip hol';
+                hol.innerText = '🎄';
+                cell.appendChild(hol);
+            }
+
+            grid.appendChild(cell);
+        }
+
+        container.appendChild(grid);
+
+        const legend = document.createElement('div');
+        legend.className = 'legend';
+        legend.innerHTML = `
+            <span><span class="chip prac">ФХ</span> практика</span>
+            <span><span class="chip lec">ФТ</span> лекция</span>
+            <span>серым — выходные (Сб/Вс)</span>
+            <span>🎄 — новогодние праздники</span>
+        `;
+        container.appendChild(legend);
+    }
+
     function renderAll() {
         const container = document.getElementById('schedule-container');
         container.innerHTML = '';
-        const start = new Date(2026, 8, 1);   // 1 сентября 2026
-        const end   = new Date(2026, 11, 30); // 30 декабря 2026
+        const start = new Date(2026, 8, 1);
+        const end   = new Date(2026, 11, 30);
 
         const months = {};
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
@@ -391,6 +550,7 @@
         document.getElementById(`btn-${view}`).classList.add('active');
         document.getElementById('week-nav').classList.toggle('hidden', view !== 'week');
         document.getElementById('date-nav').classList.toggle('hidden', view !== 'date');
+        document.getElementById('month-nav').classList.toggle('hidden', view !== 'calendar');
         updateDisplay();
     }
 
@@ -403,6 +563,7 @@
         if (currentView === 'today') renderToday();
         else if (currentView === 'week') renderWeek(currentMonday);
         else if (currentView === 'date') renderCustomDate();
+        else if (currentView === 'calendar') renderCalendar();
         else if (currentView === 'all') renderAll();
     }
 
